@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "StudyPilot — Learning Mode for the Web",
+  "version": "0.2.0",
+  "description": "Summarize, translate, simplify, and quiz any page. On-device with Chrome built-in AI.",
+  "permissions": ["storage", "sidePanel", "scripting", "activeTab", "contextMenus"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "sw.js", "type": "module" },
+  "action": { "default_title": "StudyPilot — Summarize this page" },
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "js": ["content.js"],
+    "run_at": "document_idle",
+    "all_frames": false
+  }],
+  "side_panel": { "default_path": "panel.html" },
+  "icons": { "128": "icon.png" },
+  "web_accessible_resources": [{
+    "resources": ["panel.html", "panel.js", "panel.css"],
+    "matches": ["<all_urls>"]
+  }],
+  "commands": {
+    "summarize": {
+      "suggested_key": { "default": "Alt+S" },
+      "description": "Summarize current page"
+    }
+  }
+}

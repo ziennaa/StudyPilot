@@ -1,0 +1,73 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>StudyPilot</title>
+<link rel="stylesheet" href="panel.css" />
+
+<header class="sp-header">
+  <div class="sp-title">StudyPilot</div>
+  <div class="sp-actions">
+    <button id="theme" title="Toggle theme" class="sp-btn">🌙</button>
+    <select id="lang" class="sp-select">
+      <option value="en" selected>English</option>
+      <option value="hi">Hindi</option>
+      <option value="es">Spanish</option>
+      <option value="fr">French</option>
+    </select>
+    <button id="refresh" class="sp-btn sp-btn--brand">Summarize</button>
+    <button id="copyAll" class="sp-btn">Copy all</button>
+<button id="downloadMd" class="sp-btn">Download .md</button>
+<button id="downloadPdf" class="sp-btn">Download PDF</button>
+
+
+  </div>
+</header>
+
+<nav class="sp-tabs">
+  <button class="sp-tab sp-tab--active" data-tab="summary">Summary</button>
+  <button class="sp-tab" data-tab="flash">Flashcards</button>
+  <button class="sp-tab" data-tab="ask">Ask</button>
+  <button class="sp-tab" data-tab="diagram">Diagram Q&A</button>
+  <button class="sp-tab" data-tab="explain">Explain selection</button>
+</nav>
+
+<div id="status" class="sp-status">Waiting…</div>
+
+<section id="tab-summary" class="sp-tabpane sp-tabpane--active">
+  <div id="summaryContainer" class="sp-sections"></div>
+</section>
+
+<section id="tab-flash" class="sp-tabpane">
+  <div class="sp-row">
+    <button id="flashGen" class="sp-btn sp-btn--brand">Generate Flashcards</button>
+    <button id="flashDownload" class="sp-btn" disabled>Download CSV</button>
+  </div>
+  <div id="flashList" class="sp-flashlist"></div>
+</section>
+
+<section id="tab-ask" class="sp-tabpane">
+  <div class="sp-ask">
+    <input id="askInput" class="sp-input" placeholder="Ask a question about this page…" />
+    <button id="askBtn" class="sp-btn">Ask</button>
+  </div>
+  <pre id="askOut" class="sp-pre">Type a question and press Ask.</pre>
+</section>
+
+<section id="tab-diagram" class="sp-tabpane">
+  <div class="sp-row">
+    <input id="imgFile" type="file" accept="image/*" />
+    <input id="imgQ" class="sp-input" placeholder="Ask about the image…" />
+    <button id="imgAsk" class="sp-btn">Ask</button>
+  </div>
+  <pre id="imgOut" class="sp-pre">Pick an image and ask.</pre>
+  <div id="imgDrop" class="sp-pre" style="margin-top:8px">Drop an image here (or use the file input above)</div>
+</section>
+
+<section id="tab-explain" class="sp-tabpane">
+  <div class="sp-ask">
+    <textarea id="explText" class="sp-textarea" placeholder="Paste or right-click text on the page → ‘StudyPilot: Explain selection’"></textarea>
+    <button id="explBtn" class="sp-btn">Explain</button>
+  </div>
+  <pre id="explOut" class="sp-pre">Waiting for selection...</pre>
+</section>
+
+<script type="module" src="panel.js"></script>
