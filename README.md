@@ -141,6 +141,8 @@ The extension checks availability at runtime and gracefully falls back where pos
 - Manifest V3 + Vanilla JS + zero backend
 
 ---
+#### check it out here & find it now, [how it works? ](https://www.youtube.com/watch?v=dTRyV4BF9Jw)
+---
 
 ## License
 
