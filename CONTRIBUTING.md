@@ -17,7 +17,7 @@ This guide explains how to contributeto it.
 
 ---
 
-## Ground rules (aka: don’t summon the privacy demons)
+## Ground rules 
 
 StudyPilot is designed to work without sending page content to a server. Contributions should follow:
 
