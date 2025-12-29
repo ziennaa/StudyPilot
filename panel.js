@@ -1,7 +1,7 @@
-// ============= helpers & state =============
+// helpers & state
 const $ = (s) => document.querySelector(s);
 const setStatus = (m) => { $('#status').textContent = m; };
-let lastCards = []; // for CSV download
+let lastCards = []; 
 
 function setupTabs(){
   document.querySelectorAll('.sp-tab').forEach(btn=>{
@@ -19,40 +19,113 @@ async function activeTab(){
   return tab;
 }
 
-// run in page to extract sections
 async function extractSections(tabId){
   const [{ result }] = await chrome.scripting.executeScript({
-    target:{tabId},
-    func:()=>{
-      const root=document.querySelector('article')||document.body;
-      const hs=[...root.querySelectorAll('h1,h2,h3')];
-      if(!hs.length){
-        const text=(root.innerText||'').trim();
-        return [{id:0,title:document.title||'Page',text:text.slice(0,200000),selector:null}];
+    target: { tabId },
+    func: () => {
+      const root = document.querySelector('article') || document.querySelector('main') || document.body;
+
+      const SKIP_SELECTOR = 'nav,aside,header,footer,form,script,style,svg,canvas,noscript';
+
+      function isSkippable(el){
+        if(!el || el.nodeType !== 1) return true;
+        if(el.matches && el.matches(SKIP_SELECTOR)) return true;
+        if(el.closest && el.closest(SKIP_SELECTOR)) return true;
+        const cls = (el.className || '').toString().toLowerCase();
+        if(cls.includes('toc') || cls.includes('table-of-contents') || cls.includes('breadcrumb')) return true;
+        if(cls.includes('nav') || cls.includes('menu') || cls.includes('sidebar')) return true;
+        const role = (el.getAttribute && el.getAttribute('role')) || '';
+        if(role === 'navigation') return true;
+        return false;
       }
-      const secs=[];
-      for(let i=0;i<hs.length;i++){
-        const h=hs[i]; let t=''; let n=h.nextElementSibling;
-        while(n && !/^H[1-3]$/.test(n.tagName)){ t+=' '+(n.innerText||''); n=n.nextElementSibling; }
-        secs.push({id:i,title:(h.innerText||`Section ${i+1}`).slice(0,80),text:t.trim().slice(0,20000),selector:cssPath(h)});
-      }
+
       function cssPath(el){
         if(!el || !el.tagName) return null;
         let path=[];
         while(el && el.nodeType===1 && path.length<6){
           let s=el.nodeName.toLowerCase();
-          if(el.id){ s+='#'+el.id; path.unshift(s); break; }
+          if(el.id){ s += '#'+el.id; path.unshift(s); break; }
           else{
-            let ix=1, sib=el; while((sib=sib.previousElementSibling)) if(sib.nodeName===el.nodeName) ix++;
-            s+=(ix>1?`:nth-of-type(${ix})`:``); path.unshift(s); el=el.parentElement;
+            let ix=1, sib=el;
+            while((sib=sib.previousElementSibling)) if(sib.nodeName===el.nodeName) ix++;
+            s += (ix>1?`:nth-of-type(${ix})`:``);
+            path.unshift(s);
+            el = el.parentElement;
           }
         }
         return path.join('>');
       }
-      return secs.slice(0,10);
+
+      function nextInDom(node){
+        if(!node) return null;
+        if(node.firstElementChild) return node.firstElementChild;
+        while(node){
+          if(node === root) return null;
+          if(node.nextElementSibling) return node.nextElementSibling;
+          node = node.parentElement;
+        }
+        return null;
+      }
+
+      const headings = [...root.querySelectorAll('h1,h2,h3,h4')].filter(h=>{
+        const t=(h.innerText||'').trim();
+        if(!t || t.length < 2) return false;
+        if(isSkippable(h)) return false;
+        // ignore tiny headings that are usually chrome/site UI
+        if(t.length <= 3 && /^[A-Z0-9]+$/.test(t)) return false;
+        return true;
+      });
+
+      const seen = new Set();
+      const secs = [];
+      for(const h of headings){
+        let title = (h.innerText||'').trim().replace(/\s+/g,' ').slice(0,80);
+        const key = title.toLowerCase();
+        if(seen.has(key)) continue;
+        seen.add(key);
+
+        let text = '';
+        let n = nextInDom(h);
+        while(n){
+          if(/^H[1-6]$/.test(n.tagName) && !isSkippable(n)) break;
+          if(!isSkippable(n)){
+            const chunk = (n.innerText||'').trim();
+            if(chunk) text += (text ? '\n' : '') + chunk;
+          }
+          if(text.length > 30000) break;
+          n = nextInDom(n);
+        }
+
+        text = text.trim();
+        if(text.length < 80) continue;
+        secs.push({ id: secs.length, title, text: text.slice(0,30000), selector: cssPath(h) });
+        if(secs.length >= 12) break;
+      }
+
+      if(!secs.length){
+        let text = (root.innerText || '').trim();
+
+        // PDF heuristics: try “select all” to capture the text layer (works on many PDFs)
+        const isProbablyPDF = (document.contentType === 'application/pdf') ||
+          /\.pdf(\?|#|$)/i.test(location.href) ||
+          !!document.querySelector('embed[type="application/pdf"], object[type="application/pdf"]');
+
+        if(isProbablyPDF && text.length < 2000){
+          try{
+            document.execCommand && document.execCommand('selectAll');
+            const sel = (getSelection ? getSelection().toString() : '').trim();
+            if(sel && sel.length > text.length) text = sel;
+            if(getSelection) getSelection().removeAllRanges();
+          }catch(_){/* ignore */}
+        }
+
+        return [{ id:0, title: document.title || 'Page', text: text.slice(0,200000), selector: null }];
+      }
+
+      return secs;
     }
   });
-  return result||[];
+  return result || [];
 }
 
 function escapeHtml(s){ return s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
@@ -76,18 +149,32 @@ function renderCard(idx,title,markdown,selector,tabId){
   card.appendChild(head); card.appendChild(pre); return card;
 }
 
-// ============= Summarizer (sectioned) =============
-async function createSummarizer(lang){
-  const opts = {
-    type:'key-points', format:'markdown', length:'medium',
-    outputLanguage: lang||'en', expectedInputLanguages:['en'],
-    monitor(m){ m.addEventListener('downloadprogress', e=>console.log('[Summarizer] dl',e.loaded)); }
+// Summarizer (sectioned) 
+async function createSummarizer(lang, cfg = {}){
+  const length = cfg.length || 'short';
+  let type = cfg.type || 'key-points';
+
+  const base = {
+    format: 'markdown',
+    outputLanguage: lang || 'en',
+    expectedInputLanguages: ['en'],
+    monitor(m){ m.addEventListener('downloadprogress', e=>console.log('[Summarizer] dl', e.loaded)); }
   };
-  const avail = await Summarizer.availability(opts);
+
+  
+  let opts = { ...base, type, length };
+  let avail = await Summarizer.availability(opts);
+  if (avail === 'unavailable' && type !== 'key-points') {
+    type = 'key-points';
+    opts = { ...base, type, length };
+    avail = await Summarizer.availability(opts);
+  }
+
   if (avail === 'unavailable') {
     userTip('On-device model not available yet. Click “Summarize” once to trigger the download, then try again in a moment.');
     throw new Error('On-device Summarizer unavailable. Click Summarize once after the model downloads or update Chrome.');
   }
+
   return Summarizer.create(opts);
 }
 let running = false;
@@ -99,20 +186,44 @@ async function summarizePage() {
     setStatus('Working…');
 
     const tab = await activeTab();
-    //if (!tab?.id || !/^https?:/i.test(tab.url || '')) { setStatus('Unsupported page'); return; }
-    if (!tab?.id || !/^https?:/i.test(tab.url || '')) return;
+    if (!tab?.id) return;
+
+    // Side panel doesn't work on chrome:// / web store, but file: and PDFs can work
+    const url = tab.url || '';
+    if (/^chrome:\/\//i.test(url) || /chrome\.google\.com\/webstore/i.test(url)) return;
 
     const sections = await extractSections(tab.id);
     const lang = $('#lang').value;
-
-    // pass lang for safety/quality, but we still translate explicitly
-    const s = await createSummarizer(lang);
+    const sumLen = ($('#sumLen')?.value || 'short');
 
     const out = $("#summaryContainer");
     out.innerHTML = '';
+
+    // Overview 
+    const allText = sections
+      .map(s => `# ${s.title}\n${s.text}`)
+      .join('\n\n')
+      .slice(0, 45000);
+    if (allText.trim().length > 200) {
+      try {
+        const sOverview = await createSummarizer(lang, { type: 'tl;dr', length: 'short' });
+        const ovEn = await sOverview.summarize(allText, {
+          context: `${url}\n\nWrite a crisp overview of the page (2–6 bullets max). Do not drift into details.`
+        });
+        const ov = await translateIfNeeded(ovEn, lang);
+        out.appendChild(renderCard('★', 'Overview', ov, null, tab.id));
+      } catch (e) {
+        // If tl;dr type isn't supported, silently skip overview rather than fail the whole run.
+        console.log('[Overview] skipped', e);
+      }
+    }
+
+    //  Section summaries 
+    const s = await createSummarizer(lang, { type: 'key-points', length: sumLen });
     let i = 1;
     for (const sec of sections) {
-      const english = await s.summarize(sec.text || '', { context: tab.url });
+      const ctx = `${url}\n\nSection title: ${sec.title}\nSummarize ONLY the content under this heading. Keep it concise.`;
+      const english = await s.summarize(sec.text || '', { context: ctx });
       const localized = await translateIfNeeded(english, lang);
       out.appendChild(renderCard(i++, sec.title, localized, sec.selector, tab.id));
     }
@@ -129,7 +240,7 @@ async function summarizePage() {
 
 
 
-// ============= Flashcards (Prompt API) =============
+//  Flashcards (Prompt API)
 async function LM(){
   if(typeof LanguageModel==='undefined') throw new Error('Prompt API unavailable in this Chrome.');
   const avail=await LanguageModel.availability({ expectedInputs:[{type:'text'}] });
@@ -154,24 +265,36 @@ function cardsToCSV(cards){
 
 async function generateFlashcards(){
   setStatus('Generating flashcards…');
-  const tab=await activeTab();
-  const secs=await extractSections(tab.id);
-  const text=secs.map(s=>`# ${s.title}\n${s.text}`).join('\n\n').slice(0,25000);
+  const tab = await activeTab();
+  const secs = await extractSections(tab.id);
+  const text = secs
+    .map(s => `# ${s.title}\n${s.text}`)
+    .join('\n\n')
+    .slice(0, 30000);
   try{
-    const lm=await LM();
-    const lang=$('#lang').value;
+    const lm = await LM();
+    const lang = $('#lang').value;
+    const n = parseInt($('#flashCount')?.value || '16', 10) || 16;
+
     const prompt = [
-      { role:'system', content:`Create short ${lang.toUpperCase()} flashcards from the content. Return pure JSON in this exact shape: {"cards":[{"q":"...","a":"..."}]}. 8 cards max.` },
+      { role:'system', content:`Create up to ${n} short flashcards in ${lang.toUpperCase()} from the provided content.
+
+Rules:
+- Keep Q concise and unambiguous.
+- Keep A short (1–3 lines).
+- Do NOT invent facts not present in the text.
+- Output ONLY JSON in this exact shape: {"cards":[{"q":"...","a":"..."}]}.` },
       { role:'user', content:text }
     ];
-    const res=await lm.prompt(prompt);
-    const json=extractJson(res.outputText || String(res)) || { cards: [] };
-    lastCards = json.cards || [];
+
+    const res = await lm.prompt(prompt);
+    const json = extractJson(res.outputText || String(res)) || { cards: [] };
+    lastCards = (json.cards || []).slice(0, n);
     renderCards();
-    $('#flashDownload').disabled = lastCards.length===0;
-    setStatus(lastCards.length? `Made ${lastCards.length} cards.` : 'No cards found.');
+    $('#flashDownload').disabled = lastCards.length === 0;
+    setStatus(lastCards.length ? `Made ${lastCards.length} cards.` : 'No cards found.');
   }catch(e){
-    $('#flashList').innerHTML=`<pre class="sp-pre">${String(e)}</pre>`;
+    $('#flashList').innerHTML = `<pre class="sp-pre">${String(e)}</pre>`;
     setStatus('Error');
   }
 }
@@ -196,7 +319,7 @@ function downloadCSV(){
   setTimeout(()=>URL.revokeObjectURL(url), 1000);
 }
 
-// ============= Ask (Prompt API) =============
+//  Ask (Prompt API) 
 async function askQuestion(){
   const q=$('#askInput').value.trim(); if(!q) return;
   const out=$('#askOut'); out.textContent='Thinking…';
@@ -213,31 +336,38 @@ async function askQuestion(){
   }catch(e){ out.textContent=String(e); }
 }
 
-// ============= Diagram Q&A (Prompt API multimodal) =============
+// Diagram Q&A (Prompt API multimodal) 
 async function askDiagram(){
   const file = $('#imgFile').files[0];
   const q = $('#imgQ').value.trim() || 'Explain this image for a student.';
-  const out=$('#imgOut');
-  if(!file){ out.textContent='Pick an image first.'; return; }
-  out.textContent='Thinking…';
+  const out = $('#imgOut');
+  if(!file){ out.textContent = 'Pick an image first.'; return; }
+  out.textContent = 'Thinking…';
+
+  const lang = $('#lang').value;
   try{
     if(typeof LanguageModel==='undefined') throw new Error('Prompt API unavailable in this Chrome.');
-    const avail=await LanguageModel.availability({ expectedInputs:[{type:'image'},{type:'text'}] });
+    const avail = await LanguageModel.availability({ expectedInputs:[{type:'image'},{type:'text'}] });
     if(avail==='unavailable') throw new Error('Multimodal Prompt API unavailable on this device.');
-    const lm=await LanguageModel.create({
+
+    const lm = await LanguageModel.create({
       expectedInputs:[{type:'image'},{type:'text'}],
-      monitor(m){ m.addEventListener('downloadprogress', e=>console.log('[LM] dl',e.loaded)); }
+      monitor(m){ m.addEventListener('downloadprogress', e=>console.log('[LM] dl', e.loaded)); }
     });
-    const blob = file; // File is already a Blob
-    const res=await lm.prompt([
-      { role:'system', content:'Explain the diagram step-by-step, concise and clear.' },
-      { role:'user', content:[{type:'text', value:q},{type:'image', value:blob}] }
+
+    const res = await lm.prompt([
+      { role:'system', content:`Explain the diagram step-by-step, concise and clear in ${lang.toUpperCase()}.` },
+      { role:'user', content:[{type:'text', value:q},{type:'image', value:file}] }
     ]);
-    out.textContent=res.outputText || String(res);
-  }catch(e){ out.textContent=String(e); }
+
+    const raw = res.outputText || String(res);
+    out.textContent = await translateIfNeeded(raw, lang);
+  }catch(e){
+    out.textContent = String(e);
+  }
 }
 
-// ============= Explain selection (Rewriter API → fallback to Prompt) =============
+//  Explain selection (Rewriter API → fallback to Prompt)
 async function explainSelection(text){
   const out=$('#explOut'); out.textContent='Explaining…';
   const lang=$('#lang').value;
@@ -277,10 +407,8 @@ chrome.storage.onChanged.addListener((ch, area) => {
   chrome.storage.local.remove('studypilot_explain');
 });
 
-// ============= Theme =============
-// THEME
-// THEME — auto -> opposite system -> other -> auto
-// THEME — auto -> opposite of system -> light/dark -> auto
+// Theme
+
 function systemPrefersDark(){
   return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
@@ -517,7 +645,7 @@ chrome.runtime.onMessage.addListener((msg) => {
 
 // Try to summarize once automatically; if Chrome needs a user gesture for model download,
 // the user will click "Summarize" and it will work on the next run.
-// ---- wire UI ----
+//  wire UI
 setupTabs();
 $('#refresh').addEventListener('click', summarizePage);
 $('#flashGen').addEventListener('click', generateFlashcards);
@@ -526,12 +654,9 @@ $('#askBtn').addEventListener('click', askQuestion);
 $('#imgAsk').addEventListener('click', askDiagram);
 $('#explBtn').addEventListener('click', () => explainSelection($('#explText').value.trim()));
 $('#lang').addEventListener('change', summarizePage);   // you already had this; keeping here with the others
+$('#sumLen').addEventListener('change', summarizePage);
 $('#copyAll').addEventListener('click', copyAll);
 $('#downloadMd').addEventListener('click', downloadMarkdown);
 $('#downloadPdf').addEventListener('click', downloadPDF);
 
-//userTip('On-device model not available yet. Click “Summarize” once to trigger the download, then try again in a moment.');
-
-
-// first render
 summarizePage();

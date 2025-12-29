@@ -17,20 +17,18 @@
     cursor: 'pointer'
   });
 
-  // Safe send: works even if the extension was just reloaded
+ 
   function openPanelSafe() {
-    // if the extension context is gone (after reload), this will be falsey
     if (!chrome?.runtime?.id) return;
     try {
       const p = chrome.runtime.sendMessage({ kind: 'OPEN_PANEL' });
-      // avoid unhandled promise rejection from context invalidation
       if (p && typeof p.catch === 'function') p.catch(() => {});
-    } catch (_) { /* ignore */ }
+    } catch (_) {  }
   }
 
   btn.addEventListener('click', openPanelSafe);
 
-  // Re-attach if some SPA wipes the body
+ 
   const mo = new MutationObserver(() => {
     if (!document.getElementById('__studypilot_btn')) {
       document.body.appendChild(btn);

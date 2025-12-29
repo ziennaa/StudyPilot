@@ -5,7 +5,7 @@ async function makeSummarizer(opts = {}) {
     type: opts.type || 'key-points',
     format: 'markdown',
     length: opts.length || 'medium',
-    outputLanguage: 'en',                 // required by newer builds
+    outputLanguage: 'en',                 
     expectedInputLanguages: ['en'],
     monitor(m) {
       m.addEventListener('downloadprogress', e =>
@@ -14,7 +14,6 @@ async function makeSummarizer(opts = {}) {
     }
   };
 
-  // availability must match create() options
   const availability = await Summarizer.availability(options);
   if (availability === 'unavailable') return { error: 'SUMMARIZER_UNAVAILABLE' };
 
@@ -23,7 +22,6 @@ async function makeSummarizer(opts = {}) {
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  // ⚡ ping handler so SW can verify this page is ready
   if (msg?.kind === 'AI_PING') { sendResponse({ ok: true }); return; }
 
   if (msg?.kind !== 'AI_DO') return;
@@ -44,5 +42,5 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     }
   })();
 
-  return true; // keep channel open for async work
+  return true; 
 });

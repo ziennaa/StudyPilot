@@ -9,13 +9,13 @@ Built for the *Google Chrome Built-in AI Challenge 2025*.
 ## Features
 
 - **Section aware summaries**  
-  Detects page sections (H1–H3) and produces concise, markdown bullet points per section.
+  Detects page sections (H1–H4, with a fallback to main-page text) and produces concise, markdown bullet points per section — plus an **Overview**.
 
 - **Multilingual output**  
   Choose your language (English, Hindi, Spanish, French). Translation uses the on device **Translator API** when available, with a **Prompt API** fallback.
 
 - **Flashcards in one click**  
-  Generates up to 8 Q↔A cards as JSON using the **Prompt API**, with CSV export.
+  Generates **8–24** Q↔A cards as JSON using the **Prompt API**, with CSV export.
 
 - **Ask about this page**  
   Short, sourced answers using *only* the extracted page text (no hallucinated facts).
@@ -107,7 +107,7 @@ The extension checks availability at runtime and gracefully falls back where pos
 - `scripting` – inject a tiny snippet for section detection and “Go to section”  
 - `storage` – save theme/language preferences  
 - `contextMenus` – right click “Explain selection”  
-- `host_permissions: ["http://*/*", "https://*/*"]` – read text of the page you’re summarizing
+- `host_permissions: ["<all_urls>"]` – read text of the page you’re summarizing (and optionally PDFs / file URLs)
 
 **Privacy:** StudyPilot runs entirely in your browser. No remote server is used for AI processing. See **[PRIVACY.md](./PRIVACY.md)**.
 
@@ -115,7 +115,9 @@ The extension checks availability at runtime and gracefully falls back where pos
 
 ## Troubleshooting
 
-- **“Unsupported page”** – works on `http(s)` pages. `chrome://`, `edge://`, PDFs, and some web apps may not expose readable text.  
+- **“Unsupported page”** – works on `http(s)` pages. `chrome://`, the Chrome Web Store, and some web apps may not expose readable text.  
+- **PDFs** – sometimes extractable (if text is selectable). Some PDFs will still be blank due to viewer/security limitations.  
+- **file:// pages** – requires enabling “Allow access to file URLs” for the extension in `chrome://extensions`.
 - **Model unavailable / activation** – click **Summarize** once to allow Chrome to initialize or download the on device model, then try again.  
 - **PDF dialog didn’t show** – some setups block programmatic print. Press `Ctrl/Cmd+P`.  
 - **Dark print preview** – your OS/browser print theme may default to dark. Switch to light before saving (known UX todo).

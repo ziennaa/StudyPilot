@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "StudyPilot — Learning Mode for the Web",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "description": "Summarize, translate, simplify, and quiz any page. On-device with Chrome built-in AI.",
   "permissions": ["storage", "sidePanel", "scripting", "activeTab", "contextMenus"],
   "host_permissions": ["<all_urls>"],

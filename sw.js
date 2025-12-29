@@ -8,8 +8,10 @@ function openPanel(tabId) {
 async function openPanelForActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return;
-  // Side Panel can't attach to chrome:// or the Chrome Web Store
-  if (!/^https?:/i.test(tab.url || '')) return;
+  const url = tab.url || '';
+  if (/^chrome:\/\//i.test(url) || /chrome\.google\.com\/webstore/i.test(url)) return;
+  
+  if (!/^(https?:|file:)/i.test(url)) return;
   openPanel(tab.id);
 }
 
@@ -26,7 +28,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 chrome.action.onClicked.addListener(() => { openPanelForActiveTab(); });
 chrome.commands.onCommand.addListener((cmd) => { if (cmd === 'summarize') openPanelForActiveTab(); });
-// Create the context menu once
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: 'studypilot_explain',
@@ -35,21 +37,21 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-// When user clicks "Explain selection"
+
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== 'studypilot_explain' || !tab?.id) return;
 
-  // Read selection text from the page
+  
   const [{ result: selection }] = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     func: () => (getSelection()?.toString() || '').trim()
   });
   if (!selection) return;
 
-  // Hand off to the panel (your panel.js already watches this key)
+ 
   await chrome.storage.local.set({ studypilot_explain: { text: selection } });
 
-  // Open the panel attached to this tab
+ 
   chrome.sidePanel.setOptions({ tabId: tab.id, path: 'panel.html' }, () => {
     chrome.sidePanel.open({ tabId: tab.id }).catch(()=>{});
   });
@@ -57,7 +59,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 const lastUrlByTab = new Map();
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status !== 'complete' || !/^https?:/i.test(tab?.url || '')) return;
+  const url = tab?.url || '';
+  if (changeInfo.status !== 'complete') return;
+  if (/^chrome:\/\//i.test(url) || /chrome\.google\.com\/webstore/i.test(url)) return;
+  if (!/^(https?:|file:)/i.test(url)) return;
   const prev = lastUrlByTab.get(tabId);
   if (prev !== tab.url) {
     lastUrlByTab.set(tabId, tab.url);
