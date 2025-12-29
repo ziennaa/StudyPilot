@@ -144,6 +144,10 @@ The extension checks availability at runtime and gracefully falls back where pos
 #### check it out here & find it now, [how it works? ](https://www.youtube.com/watch?v=dTRyV4BF9Jw)
 ---
 
+## Contributing
+Contributions are welcome! Please see `CONTRIBUTING.md`.
+
+---
 ## License
 
 Released under the **MIT License**. See [LICENSE](./LICENSE).
